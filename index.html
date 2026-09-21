@@ -52,7 +52,8 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
 .f.full{grid-column:1/-1}
 .dur{display:flex;align-items:center;gap:5px}
-.dur span{color:var(--muted);font-size:13px}
+.dur input{flex:1;min-width:0;padding-left:6px;padding-right:2px;text-align:center}
+.dur span{color:var(--muted);font-size:13px;flex:none}
 input[type=number],input[type=text],textarea{width:100%;min-width:0;background:var(--chip);color:var(--text);border:1px solid transparent;border-radius:10px;padding:10px;font:inherit;font-size:16px}
 input:focus,textarea:focus{outline:2px solid var(--accent)}
 .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -213,17 +214,26 @@ function fmtDur(ms){
 var ac=null;
 function audio(){try{if(!ac){var A=window.AudioContext||window.webkitAudioContext;if(A)ac=new A();}if(ac&&ac.state==='suspended')ac.resume();}catch(e){}}
 function beep(freqs){
-  try{if(navigator.vibrate)navigator.vibrate(freqs.length>1?[120,60,120]:200);}catch(e){}
+  try{if(navigator.vibrate)navigator.vibrate(freqs.length>1?[220,100,220,100,220]:450);}catch(e){}
   if(!S.sound||!ac)return;
   try{
     var t0=ac.currentTime;
     freqs.forEach(function(f,i){
-      var o=ac.createOscillator(),g=ac.createGain(),s=t0+i*0.24;
-      o.type='sine';o.frequency.value=f;o.connect(g);g.connect(ac.destination);
+      var s=t0+i*0.4;
+      /* couche 1 : ton principal, plus fort et plus long */
+      var o=ac.createOscillator(),g=ac.createGain();
+      o.type='triangle';o.frequency.value=f;o.connect(g);g.connect(ac.destination);
       g.gain.setValueAtTime(0.0001,s);
-      g.gain.exponentialRampToValueAtTime(0.4,s+0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001,s+0.2);
-      o.start(s);o.stop(s+0.22);
+      g.gain.exponentialRampToValueAtTime(0.95,s+0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001,s+0.55);
+      o.start(s);o.stop(s+0.58);
+      /* couche 2 : harmonique à l'octave, ajoute du corps et de la présence */
+      var o2=ac.createOscillator(),g2=ac.createGain();
+      o2.type='square';o2.frequency.value=f*2;o2.connect(g2);g2.connect(ac.destination);
+      g2.gain.setValueAtTime(0.0001,s);
+      g2.gain.exponentialRampToValueAtTime(0.25,s+0.03);
+      g2.gain.exponentialRampToValueAtTime(0.0001,s+0.4);
+      o2.start(s);o2.stop(s+0.42);
     });
   }catch(e){}
 }
@@ -310,7 +320,8 @@ function renderChips(){
 }
 function durField(label,key){
   var v=S.cfg[key],d=S.t?' disabled':'';
-  return '<div class="f"><label>'+label+'</label><div class="dur"><input type="number" inputmode="numeric" min="0" max="999" data-k="'+key+'" data-u="m" value="'+Math.floor(v/60)+'"'+d+'><span>min</span><input type="number" inputmode="numeric" min="0" max="59" data-k="'+key+'" data-u="s" value="'+(v%60)+'"'+d+'><span>s</span></div></div>';
+  var hh=Math.floor(v/3600),mm=Math.floor((v%3600)/60),ss=v%60;
+  return '<div class="f"><label>'+label+'</label><div class="dur"><input type="number" inputmode="numeric" min="0" max="99" data-k="'+key+'" data-u="h" value="'+hh+'"'+d+'><span>h</span><input type="number" inputmode="numeric" min="0" max="59" data-k="'+key+'" data-u="m" value="'+mm+'"'+d+'><span>min</span><input type="number" inputmode="numeric" min="0" max="59" data-k="'+key+'" data-u="s" value="'+ss+'"'+d+'><span>s</span></div></div>';
 }
 function renderCfg(){
   var h='',d=S.t?' disabled':'',p='';
@@ -450,9 +461,10 @@ $('#cfg').addEventListener('change',function(e){
   if(k==='rounds'){S.cfg.rounds=clamp(parseInt(i.value,10)||0,0,999);}
   else{
     var row=i.closest('.dur');
-    var m=clamp(parseInt(row.querySelector('[data-u=m]').value,10)||0,0,999);
+    var h=clamp(parseInt(row.querySelector('[data-u=h]').value,10)||0,0,99);
+    var m=clamp(parseInt(row.querySelector('[data-u=m]').value,10)||0,0,59);
     var s=clamp(parseInt(row.querySelector('[data-u=s]').value,10)||0,0,59);
-    var v=m*60+s;if(v<1&&k!=='rest')v=1;S.cfg[k]=v;
+    var v=h*3600+m*60+s;if(v<1&&k!=='rest')v=1;S.cfg[k]=v;
   }
   save();renderCfg();updateDial();
 });
